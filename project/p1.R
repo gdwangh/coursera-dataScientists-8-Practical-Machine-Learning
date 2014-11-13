@@ -1,14 +1,16 @@
-setwd("D:/workspace/dataScientists/8-Practical Machine Learning/coursera-dataScientists-8-Practical-Machine-Learning/project")
+#setwd("D:/workspace/dataScientists/8-Practical Machine Learning/coursera-dataScientists-8-Practical-Machine-Learning/project")
+setwd("./project")
 
 library(caret)
-tmp_ds<-read.csv("pml-training.csv")
+# tmp_ds<-read.csv("pml-training.csv")
+train_ds<-read.csv("pml-training.csv")
 test_ds<-read.csv("pml-testing.csv")
 
 # split cross validate dataset
 set.seed(5)
-inTrain = createDataPartition(tmp_ds$classe, p = 3/4)[[1]]
-train_ds = tmp_ds[ inTrain,]
-valid_ds = tmp_ds[-inTrain,]
+# inTrain = createDataPartition(tmp_ds$classe, p = 3/4)[[1]]
+# train_ds = tmp_ds[ inTrain,]
+# valid_ds = tmp_ds[-inTrain,]
 
 summary(train_ds)
 
@@ -16,7 +18,7 @@ summary(train_ds)
 n<-ncol(train_ds)
 th<-nrow(train_ds)/5   # NA 太多, 有效记录数小于阀值，就不能要这个列
 clist<-c()
-for (i in 3:(n-1))  {   # 跳过x 和user_name, 以及输出项 classe
+for (i in 3:n)  {   # 跳过x 和user_name, 以及输出项 classe
   # 统计本列不是 NA 和 “” 的记录数量
   NA_num<- sum(!is.na(train_ds[,i]) & (train_ds[,i]!=""))
   
@@ -27,10 +29,14 @@ for (i in 3:(n-1))  {   # 跳过x 和user_name, 以及输出项 classe
 }
 
 summary(train_ds[,clist])
+names(train_ds)[clist]
 
-qplot(train_ds$classe, train_ds$num_window,geom="boxplot")
-qplot(train_ds$classe, train_ds$num_window)
+qplot(train_ds$classe, train_ds$pitch_belt,geom="boxplot")
+qplot(train_ds$classe, train_ds$total_accel_forearm)
 
+
+
+fit<-train(classe~., data=train_ds[,clist], method="glm")
 
 nearZeroVar(train_ds[,clist], saveMetrics=TRUE)
 
