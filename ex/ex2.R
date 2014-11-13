@@ -51,25 +51,38 @@ trainPC<-predict(p, training[,grep("IL", names(training))])
 names(trainPC)
 
 
-# Q5
+# Q5: 下面的结果与答案不符合，不知道原因
+
 library(caret)
 library(AppliedPredictiveModeling)
-set.seed(13433)
+set.seed(3433)
 data(AlzheimerDisease)
 adData = data.frame(diagnosis,predictors)
-inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+inTrain = createDataPartition(adData$diagnosis, p = 0.75)[[1]]
+
 training = adData[ inTrain, c(1,grep("IL", names(adData)))]
 testing = adData[-inTrain,c(1,grep("IL", names(adData)))]
 
 # No-PCA
 fit1<-train(diagnosis~.,data=training, method="glm")
-confusionMatrix(testing$diagnosis, predict(fit1, newdata=testing))
- # Accuracy : 0.7561
+confusionMatrix(predict(fit1, newdata=testing), testing$diagnosis)
+
+
+   # Accuracy : 0.7439
+   # Balanced Accuracy : 0.6523
 
 # PCA
 fit2<-train(training$diagnosis~.,data=training, method="glm", preProcess="pca", 
             trControl=trainControl(preProcOptions=list(thresh = 0.8)))
-
-confusionMatrix(testing$diagnosis, predict(fit2, testing))
+confusionMatrix( predict(fit2, newdata=testing), testing$diagnosis)
    # Accuracy : 0.7439
+   # Balanced Accuracy : 0.6379
+
+# PCA 2 0.6707
+preProc <- preProcess(training[,-1], thresh= 0.80, method="pca")
+trainPC <- predict(preProc, training[,-1])
+fit3<- train(training$diagnosis~., method="glm", data=trainPC)
+
+testPC<- predict(preProc, testing[,-1])
+confusionMatrix(testing$diagnosis, predict(fit3, testPC))
 
