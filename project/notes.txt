@@ -1,5 +1,6 @@
 
 "new_window"           "num_window"
+           
 
 4个传感器，参数：
 - 原始的9个3维指标
@@ -8,7 +9,7 @@
 - calculated features
   * on the Euler angles (roll, pitch and yaw)
   * For the Euler angles of each of the four sensors we calculated eight features: mean, variance, standard deviation, max, min, amplitude, kurtosis and skewness
-
+      
 
 ======================= belt sensors ===============================
 "roll_belt"            "pitch_belt"    "yaw_belt"  "total_accel_belt"  
