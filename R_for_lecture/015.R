@@ -11,20 +11,20 @@ testing<-Wage[-inTrain,]
 
 library(splines)
 
-lm1<-lm(wage~bs(age,df=3), data=training)
-
 # 方法1：
+lm1<-lm(wage~bs(age,df=3), data=training)
 predict_test_wage1<- predict(lm1, data.frame(age=testing$age))
 
 # 方法2：
+lm1<-lm(wage~bs(age,df=3), data=training)
 predict_test_wage2<- predict(lm1, newdata=testing)
 
-# 疑问：pdf上的下面语句是什么意思？
-# bsBasis<-bs(training$age, df=3)
-# lm1<-lm(wage~bsBasis, data=training)
-# predict(lm1, newdata=training)
+# 方法3：
+bsBasis<-bs(training$age, df=3)
+lm1<-lm(wage~bsBasis, data=training)
+bsBasis<-predict(bsBasis, testing$age)  # splines on test dataset
+pred_test_wage<- predict(lm1, newdata=testing)
 
-# predict(bsBasis, age=testing$age)  # splines on test dataset
 
 # 绘图
 par(mfrow = c(1, 1))
@@ -37,5 +37,8 @@ par(mfrow = c(1, 1))
 plot(testing$age, testing$wage,pch=19, cex=0.5)
 points(testing$age, predict_test_wage1, col="red",pch=19, cex=0.5)
 points(testing$age, predict_test_wage2, col="blue",pch=3, cex=0.5)
+
+
+
 
 
