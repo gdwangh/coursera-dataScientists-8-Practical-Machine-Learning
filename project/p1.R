@@ -2,15 +2,15 @@
 setwd("./project")
 
 library(caret)
-# tmp_ds<-read.csv("pml-training.csv")
-train_ds<-read.csv("pml-training.csv")
+tmp_ds<-read.csv("pml-training.csv")
+# train_ds<-read.csv("pml-training.csv")
 test_ds<-read.csv("pml-testing.csv")
 
 # split cross validate dataset
 set.seed(5)
-# inTrain = createDataPartition(tmp_ds$classe, p = 3/4)[[1]]
-# train_ds = tmp_ds[ inTrain,]
-# valid_ds = tmp_ds[-inTrain,]
+inTrain = createDataPartition(tmp_ds$classe, p = 3/4)[[1]]
+train_ds = tmp_ds[ inTrain,]
+valid_ds = tmp_ds[-inTrain,]
 
 summary(train_ds)
 
@@ -18,7 +18,7 @@ summary(train_ds)
 n<-ncol(train_ds)
 th<-nrow(train_ds)/5   # NA 太多, 有效记录数小于阀值，就不能要这个列
 clist<-c()
-for (i in 3:n)  {   # 跳过x 和user_name, 以及输出项 classe
+for (i in 8:(n-1))  {   # 跳过x 和user_name, new_window, num_window, classe
   # 统计本列不是 NA 和 “” 的记录数量
   NA_num<- sum(!is.na(train_ds[,i]) & (train_ds[,i]!=""))
   
@@ -64,11 +64,32 @@ M<-abs(cor(train_ds[,c(8:11,37:45)]))
 diag(M)<-0
 which(M>0.8,arr.ind=T)
 
-# train 执行出错，因为 glm只能针对2-level factor
+# 测试 belt
 preProc_belt<-preProcess(train_ds[,c(8:11,37:45)], method="pca", thresh=0.8)
 trainPC_belt<-predict(preProc_belt, train_ds[,c(8:11,37:45)])
-fit1<-train(train_ds$classe~., method="glm",data=trainPC_belt,family="binomial")
 
-fit1<-t(train_ds$classe ~ ., data=trainPC_belt, family="binomial")
-dim(trainPC_belt)
+fit1<-train(train_ds$classe~., method="rpart",data=trainPC_belt)
 
+validPC_belt<-predict(preProc_belt, valid_ds[,c(8:11,37:45)])
+
+y<-predict(fit1, validPC_belt)
+confusionMatrix(valid_ds$classe, y)
+
+# 测试所有的
+preProc<-preProcess(train_ds[clist], method="pca")
+trainPC<-predict(preProc, train_ds[clist])
+
+fit1<-train(train_ds$classe~., method="rpart",data=trainPC)
+confusionMatrix(train_ds$classe, predict(fit1, trainPC))
+
+validPC<-predict(preProc, valid_ds[clist])
+
+y<-predict(fit1, validPC)
+confusionMatrix(valid_ds$classe, y)
+
+
+library(rpart)
+library(rpart.plot)
+library(rattle)
+fancyRpartPlot(fit1$finalModel)
+print(fit1$finalModel)
