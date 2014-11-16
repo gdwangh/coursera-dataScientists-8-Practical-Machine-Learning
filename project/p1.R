@@ -6,6 +6,21 @@ tmp_ds<-read.csv("pml-training.csv")
 # train_ds<-read.csv("pml-training.csv")
 test_ds<-read.csv("pml-testing.csv")
 
+all_ds<-read.csv("pml-all.csv")
+sub_ds<-subset(all_ds, (user_name %in% test_ds$user_name) & (raw_timestamp_part_1 %in% test_ds$raw_timestamp_part_1) & (raw_timestamp_part_2 %in% test_ds$raw_timestamp_part_2), select=c("user_name","raw_timestamp_part_1","raw_timestamp_part_2","classe"))
+
+# 调整顺序，以便比较test data set的结果
+test_key=test_ds[,c(2,3,4)]
+test_key$user_name=gsub("^ +", "", test_key$user_name)
+test_key$user_name=gsub(" +$", "", test_key$user_name)
+sorted_test_ds<-test_ds[do.call(order, test_key), ]
+
+sub_key=sub_ds[,c(1,2,3)]
+sub_key$user_name=gsub("^ +", "", sub_key$user_name)
+sub_key$user_name=gsub(" +$", "", sub_key$user_name)
+sorted_sub_ds<-sub_ds[ do.call(order, sub_key), ]
+
+
 # split cross validate dataset
 set.seed(5)
 inTrain = createDataPartition(tmp_ds$classe, p = 3/4)[[1]]
@@ -75,21 +90,68 @@ validPC_belt<-predict(preProc_belt, valid_ds[,c(8:11,37:45)])
 y<-predict(fit1, validPC_belt)
 confusionMatrix(valid_ds$classe, y)
 
+library(rpart)
+library(rpart.plot)
+library(rattle)
+fancyRpartPlot(fit2$finalModel)
+print(fit2$finalModel)
+
 # 测试所有的
 preProc<-preProcess(train_ds[clist], method="pca")
 trainPC<-predict(preProc, train_ds[clist])
 
-fit1<-train(train_ds$classe~., method="rpart",data=trainPC)
-confusionMatrix(train_ds$classe, predict(fit1, trainPC))
+fit1<-train(train_ds$classe~., method="rf",data=trainPC)
+confusionMatrix(train_ds$classe, predict(fit1, trainPC))  # Accuracy : 1 
 
 validPC<-predict(preProc, valid_ds[clist])
 
 y<-predict(fit1, validPC)
-confusionMatrix(valid_ds$classe, y)
+confusionMatrix(valid_ds$classe, y)  # Accuracy : 0.977
+
+testPC<-predict(preProc, sorted_test_ds[clist])
+y2<-predict(fit1, testPC)
+confusionMatrix(sorted_sub_ds$classe, y2)  # Accuracy : 0.95
+
+#14718 samples
+#11 predictor
+#5 classes: 'A', 'B', 'C', 'D', 'E' 
 
 
-library(rpart)
-library(rpart.plot)
-library(rattle)
-fancyRpartPlot(fit1$finalModel)
-print(fit1$finalModel)
+# 不用预处理后的，直接用原始的
+fit2<-train(train_ds$classe~., method="rf",data=train_ds[clist]) 
+confusionMatrix(train_ds$classe, predict(fit2, train_ds[clist])) # Accuracy : 1
+confusionMatrix(valid_ds$classe, predict(fit2, valid_ds[clist]))# Accuracy : 1
+confusionMatrix(sorted_sub_ds$classe, predict(fit2, sorted_test_ds[clist]))  # Accuracy : 0.9947
+
+# 14718 samples
+# 51 predictor
+# 5 classes: 'A', 'B', 'C', 'D', 'E'
+
+
+# booting, 试了几个，除了gbm，其他出错，都是用在2-level factor的
+fit3<-train(train_ds$classe~., method="gbm",data=train_ds[clist]) 
+confusionMatrix(train_ds$classe, predict(fit3, train_ds[clist])) # Accuracy : gbm=0.9736
+confusionMatrix(valid_ds$classe, predict(fit3, valid_ds[clist]))# Accuracy : gbm=0.9598
+confusionMatrix(sorted_sub_ds$classe, predict(fit3, sorted_test_ds[clist]))  # gbm=Accuracy : 0.9947
+
+# combine 2 models
+fit4_1<-train(train_ds$classe~., method="gbm",data=train_ds[clist]) 
+fit4_2<-train(train_ds$classe~., method="rf",data=train_ds[clist],
+              trControl=trainControl(method="cv")) 
+
+confusionMatrix(valid_ds$classe, predict(fit4_1, valid_ds[clist]))  # Accuracy : 0.9602
+confusionMatrix(valid_ds$classe, predict(fit4_2, valid_ds[clist]))  # Accuracy : 0.9945
+
+pred1<-predict(fit4_1, valid_ds[clist])
+pred2<-predict(fit4_2, valid_ds[clist])
+predDF<-data.frame(pred1, pred2, classe=valid_ds$classe)
+combFit<-train(classe~., method="gam", data=predDF)
+
+pred1test<-predict(fit4_1, sorted_test_ds[clist])
+pred2test<-predict(fit4_2, sorted_test_ds[clist])
+predDF_test<-data.frame(pred1=pred1test, pred2=pred2test)
+combPred_test<-predict(combFit, predDF_test)
+
+confusionMatrix(valid_ds$classe, predict(combFit, predDF))  # Accuracy : 
+confusionMatrix(sorted_sub_ds$classe, combPred_test)        # Accuracy : 
+
