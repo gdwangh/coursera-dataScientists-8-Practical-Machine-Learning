@@ -2,9 +2,13 @@
 setwd("./project")
 
 library(caret)
-tmp_ds<-read.csv("pml-training.csv")
+tmp_ds<-read.csv("pml-training.csv", na.strings=c("NA","","#DIV/0!"))
+
 # train_ds<-read.csv("pml-training.csv")
-test_ds<-read.csv("pml-testing.csv")
+test_ds<-read.csv("pml-testing.csv", na.strings=c,("NA","","#DIV/0!"))
+
+t<-lapply(tmp_ds, class)
+t[t=="logical"]
 
 all_ds<-read.csv("pml-all.csv")
 sub_ds<-subset(all_ds, (user_name %in% test_ds$user_name) & (raw_timestamp_part_1 %in% test_ds$raw_timestamp_part_1) & (raw_timestamp_part_2 %in% test_ds$raw_timestamp_part_2), select=c("user_name","raw_timestamp_part_1","raw_timestamp_part_2","classe"))
@@ -155,3 +159,8 @@ combPred_test<-predict(combFit, predDF_test)
 confusionMatrix(valid_ds$classe, predict(combFit, predDF))  # Accuracy : 
 confusionMatrix(sorted_sub_ds$classe, combPred_test)        # Accuracy : 
 
+varImp(modelFit, scale = FALSE) 
+
+library(randomForest)
+set.seed(222)
+train_ds_inputed<-rfImpute(classe~.,data=train_ds[,8:160])
