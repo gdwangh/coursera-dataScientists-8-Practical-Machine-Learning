@@ -42,14 +42,17 @@ nsv<-nearZeroVar(train_ds, saveMetrics=TRUE)
 nsv   # no TRUE to delete
 
 # Random Forest
-ModFit1<-train(classe ~ ., train_ds, method="rf")
-# ModFit1<-randomForest(classe ~ ., train_ds)
+# ModFit1<-train(classe ~ ., train_ds, method="rf")
+ModFit1<-randomForest(classe ~ ., train_ds, ntree=100)
 vImp<-varImp(ModFit1)
 vImp<-data.frame(varname=rownames(vImp), Overall=vImp$Overall, row.names=rownames(vImp))
 vImp[order(vImp$Overall, decreasing=TRUE), ]
 
 pred<-predict(ModFit1, valid_ds)  
-confusionMatrix(valid_ds$classe, pred)  # Accuracy : 0.9939
+confusionMatrix(valid_ds$classe, pred)  
+  # Accuracy : ntree=500,0.9939;
+  #            ntree=100,0.9951
+
 
 pred_test<-predict(ModFit1, sorted_test_ds)
 confusionMatrix(sorted_test_classe, pred_test)  # Accuracy : 1
@@ -69,6 +72,31 @@ confusionMatrix(valid_ds$classe, y)   # Accuracy : 0.9689
 testPC<-predict(preProc, sorted_test_ds)
 y<-predict(ModFit2, testPC)
 confusionMatrix(sorted_test_classe, y)  # Accuracy : 1 
+
+# predict only using raw data
+var_list2<-c(37:45,60:68,113:121,151:159)
+
+train_ds2 = tmp_ds[ inTrain, c(var_list2,160)]
+valid_ds2 = tmp_ds[-inTrain,c(var_list2,160)]
+
+ModFit3<-randomForest(classe ~ ., train_ds2, ntree=500)
+pred<-predict(ModFit3, valid_ds2)  
+confusionMatrix(valid_ds2$classe, pred)  
+   # Accuracy : ntree=100, 0.9853
+   #            ntree=500, 0.988
+
+# predict only using Euler angles
+var_list3<-c(8:11,46:49,84:86,102,122:124,140)
+
+train_ds3 = tmp_ds[ inTrain, c(var_list3,160)]
+valid_ds3 = tmp_ds[-inTrain,c(var_list3,160)]
+
+ModFit4<-randomForest(classe ~ ., train_ds3, ntree=100)
+pred<-predict(ModFit4, valid_ds3)  
+confusionMatrix(valid_ds3$classe, pred)  
+
+# Accuracy : ntree=100, 0.9916
+#            ntree=500, 0.9906
 
 # write 20 files for prediction 
 
