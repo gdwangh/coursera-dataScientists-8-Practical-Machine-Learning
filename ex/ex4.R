@@ -1,6 +1,5 @@
 # Q1: 计算与可选答案相差很远
 library(ElemStatLearn)
-library(caret)
 data(vowel.train)
 data(vowel.test) 
 
@@ -8,27 +7,19 @@ vowel.train$y<-as.factor(vowel.train$y)
 vowel.test$y<-as.factor(vowel.test$y)
 
 set.seed(33833)
-fit1<-train(y~., mechod="rf", data=vowel.train)
-fit2<-train(y~., mechod="gbm", data=vowel.train)
+library(caret)
 
-predTest1<-predict(fit1, newdata=vowel.test)
-predTest2<-predict(fit2, newdata=vowel.test)
+fit1<-train(vowel.train$y~., mechod="rf", data=vowel.train[,-1])
+fit2<-train(vowel.train$y~., mechod="gbm", data=vowel.train[,-1])
+
+predTest1<-predict(fit1, newdata=vowel.test[,-1])
+predTest2<-predict(fit2, newdata=vowel.test[,-1])
 
 confusionMatrix(predTest1, vowel.test$y)  # Accuracy : 0.6061
-confusionMatrix(predTest2, vowel.test$y)  # Accuracy : 0.5996  
+confusionMatrix(predTest2, vowel.test$y)  # Accuracy : 0.6017
 
-sum((predTest1==vowel.test$y) & (predTest2==vowel.test$y))/length(vowel.test$y)  # 0.5692641
-
-pred1<-predict(fit1, newdata=vowel.train)
-pred2<-predict(fit2, newdata=vowel.train)
-predDF<-data.frame(pred1, pred2, y=vowel.train$y)
-combFit<-train(y~., data=predDF, method="rf")
-
-predTest1<-predict(fit1, newdata=vowel.test)
-predTest2<-predict(fit2, newdata=vowel.test)
-predTestDF<-data.frame(pred1=predTest1, pred2=predTest2)
-combPred<-predict(combFit, predTestDF)
-confusionMatrix(combPred, vowel.test$y) 
+sum((predTest1==predTest2) & (predTest2==vowel.test$y))/length(vowel.test$y)  # 0.5757576
+sum((predTest1==predTest2) & (predTest2==vowel.test$y))/sum((predTest1==predTest2)) # 0.6303318
 
 # Q2
 library(caret)
