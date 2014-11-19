@@ -1,0 +1,97 @@
+---
+title: "Predict manner in which people did the exercise"
+output: html_document
+---
+
+## introduction
+
+## Data procProcessing
+Read the data from files
+```{r}
+library(caret)
+tmp_ds<-read.csv("pml-training.csv", na.strings=c("NA","","#DIV/0!"))
+test_ds<-read.csv("pml-testing.csv", na.strings=c("NA","","#DIV/0!"))
+```
+
+For cross-validation, random subsampling is used to split training data into training subset data and validation subset data.  
+```{r}
+set.seed(12345)
+inTrain = createDataPartition(tmp_ds$classe, p = 0.75)[[1]]
+train_ds = tmp_ds[ inTrain, ]
+valid_ds = tmp_ds[-inTrain, ]
+dim(train_ds)
+dim(valid_ds)
+```
+As decribed in 2013.Velloso.QAR-WLE.pdf, there are four sensors on belt, arm, dumbbell and forearm. Every case in the dataset has four groups columns to each of the four sensors, i.e. the raw accelerometer, gyroscope and magnetometer readings and calculated Euler angles (roll, pitch and yaw). And for the Euler angles of each of the four sensors eight statistics features were calculated such as mean, max, min and so on. 
+```{r,eval=FALSE}
+summary(train_ds)
+```
+As output of summary(), every row in the dataset has 160 columns and many of statistics are NA. So, I take the Euler angles and raw accelerometer, gyroscope and magnetometer readings of four sensors only to predict.
+```{r}
+var_list<-c(8:11,37:45,46:49,60:68,84:86,102,113:121,122:124,140,151:159)
+train_ds<-train_ds[,c(var_list, 160)]
+valid_ds<-valid_ds[,c(var_list, 160)]
+```
+Try to remove zero covariates
+```{r}
+nsv<-nearZeroVar(train_ds, saveMetrics=TRUE)
+nsv
+```
+No feature should be removed.
+
+## Model selection
+```{r}
+dim(train_ds)
+```
+I use all 52 variables except classe and random Forest approach to train first model.
+```{r,cache=TRUE}
+library(randomForest)
+# ModFit1<-randomForest(classe ~ ., train_ds)
+ModFit1<-train(classe ~ ., train_ds)
+```
+Predict valid dataset and  calculate the accuracy to measure error.
+```{r}
+pred<-predict(ModFit1, valid_ds)
+sum(valid_ds$classe==pred)/length(valid_ds$classe)  
+```
+
+Because Euler angles (roll, pitch and yaw) are calculated by raw accelerometer, gyroscope and magnetometer readings, predictors should be correlated. Using pca to reduce number of predictors.
+```{r}
+preProc<-preProcess(train_ds[,-53], method="pca")  # 53 means classe
+trainPC<-predict(preProc, train_ds[,-53])
+dim(trainPC)
+```
+The number of predictors is reduced to `r dim(trainPC)`. 
+```{r,cache=TRUE}
+# ModFit2<-randomForest(train_ds$classe~.,data=trainPC)
+ModFit2<-train(train_ds$classe~.,data=trainPC)
+```
+Predict valid dataset and  calculate the accuracy to measure error.
+```{r}
+validPC<-predict(preProc, valid_ds[,-53])
+y<-predict(ModFit2, validPC)
+sum(valid_ds$classe==pred)/length(valid_ds$classe)
+```
+
+```{r}
+test_key=test_ds[,c(2,3,4)]
+test_key$user_name=gsub("^ +", "", test_key$user_name)
+test_key$user_name=gsub(" +$", "", test_key$user_name)
+sorted_test_ds<-test_ds[do.call(order, test_key), var_list]
+
+all_ds<-read.csv("pml-all.csv", na.strings=c("NA","","#DIV/0!"))
+sub_ds<-subset(all_ds, (user_name %in% test_ds$user_name) & (raw_timestamp_part_1 %in% test_ds$raw_timestamp_part_1) & (raw_timestamp_part_2 %in% test_ds$raw_timestamp_part_2), select=c("user_name","raw_timestamp_part_1","raw_timestamp_part_2","classe"))
+
+sub_key=sub_ds[,c(1,2,3)]
+sub_key$user_name=gsub("^ +", "", sub_key$user_name)
+sub_key$user_name=gsub(" +$", "", sub_key$user_name)
+sorted_test_classe<-sub_ds[ do.call(order, sub_key), "classe"]
+
+pred1<-predict(ModFit1, sorted_test_ds)
+sum(sorted_test_classe==pred1)/length(sorted_test_classe)
+
+testPC<-predict(preProc, sorted_test_ds[,var_list])
+pred2<-predict(ModFit2, testPC)
+sum(sorted_test_classe==pred2)/length(sorted_test_classe)
+```
+## Results
