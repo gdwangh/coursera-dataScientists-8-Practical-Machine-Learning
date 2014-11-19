@@ -61,7 +61,7 @@ preProc<-preProcess(train_ds[,-53], method="pca")  # 53 means classe
 trainPC<-predict(preProc, train_ds[,-53])
 dim(trainPC)
 ```
-The number of predictors is reduced to `r dim(trainPC)`. 
+The number of predictors is reduced to `r dim(trainPC)[2]`. 
 ```{r,cache=TRUE}
 # ModFit2<-randomForest(train_ds$classe~.,data=trainPC)
 ModFit2<-train(train_ds$classe~.,data=trainPC)
@@ -70,7 +70,7 @@ Predict valid dataset and  calculate the accuracy to measure error.
 ```{r}
 validPC<-predict(preProc, valid_ds[,-53])
 y<-predict(ModFit2, validPC)
-sum(valid_ds$classe==pred)/length(valid_ds$classe)
+sum(valid_ds$classe==y)/length(valid_ds$classe)
 ```
 
 ```{r}
@@ -90,7 +90,7 @@ sorted_test_classe<-sub_ds[ do.call(order, sub_key), "classe"]
 pred1<-predict(ModFit1, sorted_test_ds)
 sum(sorted_test_classe==pred1)/length(sorted_test_classe)
 
-testPC<-predict(preProc, sorted_test_ds[,var_list])
+testPC<-predict(preProc, sorted_test_ds)
 pred2<-predict(ModFit2, testPC)
 sum(sorted_test_classe==pred2)/length(sorted_test_classe)
 ```
