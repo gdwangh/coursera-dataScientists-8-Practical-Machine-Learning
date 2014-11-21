@@ -7,13 +7,14 @@ output: html_document
 
 ## Data procProcessing
 Read the data from files
-```{r}
+```{r,message=FALSE}
 library(caret)
+library(randomForest)
 tmp_ds<-read.csv("pml-training.csv", na.strings=c("NA","","#DIV/0!"))
 test_ds<-read.csv("pml-testing.csv", na.strings=c("NA","","#DIV/0!"))
 ```
 
-For cross-validation, random subsampling is used to split training data into training subset data and validation subset data.  
+To test the classifier, random subsampling cross-validation is used to split input training data into training subset and validation subset.  
 ```{r}
 set.seed(12345)
 inTrain = createDataPartition(tmp_ds$classe, p = 0.75)[[1]]
@@ -22,11 +23,12 @@ valid_ds = tmp_ds[-inTrain, ]
 dim(train_ds)
 dim(valid_ds)
 ```
-As decribed in 2013.Velloso.QAR-WLE.pdf, there are four sensors on belt, arm, dumbbell and forearm. Every case in the dataset has four groups columns to each of the four sensors, i.e. the raw accelerometer, gyroscope and magnetometer readings and calculated Euler angles (roll, pitch and yaw). And for the Euler angles of each of the four sensors eight statistics features were calculated such as mean, max, min and so on. 
+As described in 2013.Velloso.QAR-WLE.pdf, there are four sensors on belt, arm, dumbbell and forearm. Every case in the dataset has a group of variables for each of the four sensors, which are the raw accelerometer, gyroscope and magnetometer readings and calculated Euler angles (roll, pitch and yaw). And for the Euler angles of each of the four sensors eight statistics features were calculated such as mean, max, min and so on. 
 ```{r,eval=FALSE}
 summary(train_ds)
 ```
-As output of summary(), every row in the dataset has 160 columns and many of statistics are NA. So, I take the Euler angles and raw accelerometer, gyroscope and magnetometer readings of four sensors only to predict.
+As output of summary(), every row in the dataset has 160 variables and many of statistics varaibles are NA, which can't be used as predictor. So, The Euler angles and raw accelerometer, gyroscope and magnetometer readings of four sensors are taken out only to predict.
+
 ```{r}
 var_list<-c(8:11,37:45,46:49,60:68,84:86,102,113:121,122:124,140,151:159)
 train_ds<-train_ds[,c(var_list, 160)]
@@ -40,40 +42,74 @@ nsv
 No feature should be removed.
 
 ## Model selection
-```{r}
-dim(train_ds)
-```
-I use all 52 variables except classe and random Forest approach to train first model.
-```{r,cache=TRUE}
-library(randomForest)
+
+First, all 52 variables except classe are selected as predictors and random Forest approach is used to train the model.
+```{r train_Model_1,cache=TRUE}
 # ModFit1<-randomForest(classe ~ ., train_ds)
-ModFit1<-train(classe ~ ., train_ds)
+ModFit1<-train(classe ~ ., train_ds, method="rf")
 ```
 Predict valid dataset and  calculate the accuracy to measure error.
 ```{r}
-pred<-predict(ModFit1, valid_ds)
-sum(valid_ds$classe==pred)/length(valid_ds$classe)  
+pred1<-predict(ModFit1, valid_ds)
+# accuracy 
+(confusionMatrix(valid_ds$classe, pred1)$overall)[1]
 ```
 
-Because Euler angles (roll, pitch and yaw) are calculated by raw accelerometer, gyroscope and magnetometer readings, predictors should be correlated. Using pca to reduce number of predictors.
+Considering Euler angles (roll, pitch and yaw) are calculated by raw accelerometer, gyroscope and magnetometer readings, these predictors should be correlated. Try pca to reduce number of predictors.
 ```{r}
-preProc<-preProcess(train_ds[,-53], method="pca")  # 53 means classe
+preProc<-preProcess(train_ds[,-53], method="pca")  # 53th means classe
 trainPC<-predict(preProc, train_ds[,-53])
 dim(trainPC)
 ```
-The number of predictors is reduced to `r dim(trainPC)[2]`. 
-```{r,cache=TRUE}
-# ModFit2<-randomForest(train_ds$classe~.,data=trainPC)
-ModFit2<-train(train_ds$classe~.,data=trainPC)
+The number of predictors is reduced to `r dim(trainPC)[2]`. Predict valid dataset and  calculate the accuracy to measure error.
+```{r train_Model_2,cache=TRUE}
+#ModFit2<-randomForest(train_ds$classe~.,data=trainPC)
+ModFit2<-train(train_ds$classe~.,data=trainPC,method="rf")
 ```
-Predict valid dataset and  calculate the accuracy to measure error.
 ```{r}
 validPC<-predict(preProc, valid_ds[,-53])
-y<-predict(ModFit2, validPC)
-sum(valid_ds$classe==y)/length(valid_ds$classe)
+pred2<-predict(ModFit2, validPC)
+# accuracy
+(confusionMatrix(valid_ds$classe, pred2)$overall)[1]
+```
+Accuracy decreased from `r (confusionMatrix(valid_ds$classe, pred1)$overall)[1]` to `r (confusionMatrix(valid_ds$classe, pred2)$overall)[1]`, which is too much.
+
+Considering backward appoarch to omit features manually, i.e. begin with all variable, omit the feature with smallest importance, train the model and check the accuracy. Repeat the process until accuracy decrease to the thresh.  
+
+```{r omit_predictor,cache=TRUE}
+acc_thresh<-0.99
+
+while ((confusionMatrix(valid_ds$classe, pred1)$overall)[1]>acc_thresh) {
+  vImp<-varImp(ModFit1)
+  vImp<-data.frame(varname=rownames(vImp), Overall=vImp$Overall, row.names=rownames(vImp))
+  vImp<-vImp[order(vImp$Overall), ]
+  
+  remain_predictor<-row.names(vImp[-1,])
+  ModFit1<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
+  pred1<-predict(ModFit1, valid_ds)  
+}
 ```
 
+The model before the last one is selected as the result finalModel. 
+```{r train_result_model}
+remain_predictor<-row.names(vImp)
+# ModFit3<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
+ModFit3<-train(train_ds$classe ~ ., train_ds[,remain_predictor], method="rf")
+pred3<-predict(ModFit3, valid_ds) 
+length(remain_predictor)
+```
+
+The selected final model has `r length(remain_predictor)` predictors:
+```{r echo=FALSE}
+remain_predictor
+```
+The accuracy of the model is
 ```{r}
+(confusionMatrix(valid_ds$classe, pred3)$overall)[1]
+```
+
+
+```{r,eval=FALSE,echo=FALSE}
 test_key=test_ds[,c(2,3,4)]
 test_key$user_name=gsub("^ +", "", test_key$user_name)
 test_key$user_name=gsub(" +$", "", test_key$user_name)
@@ -93,5 +129,8 @@ sum(sorted_test_classe==pred1)/length(sorted_test_classe)
 testPC<-predict(preProc, sorted_test_ds)
 pred2<-predict(ModFit2, testPC)
 sum(sorted_test_classe==pred2)/length(sorted_test_classe)
+
+pred3<-predict(ModFit3, sorted_test_ds)  
+sum(sorted_test_classe==pred3)/length(sorted_test_classe)
 ```
-## Results
+
