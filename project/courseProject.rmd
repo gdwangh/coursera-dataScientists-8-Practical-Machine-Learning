@@ -46,7 +46,7 @@ No feature should be removed.
 First, all 52 variables except classe are selected as predictors and random Forest approach is used to train the model.
 ```{r train_Model_1,cache=TRUE}
 # ModFit1<-randomForest(classe ~ ., train_ds)
-ModFit1<-train(classe ~ ., train_ds, method="rf")
+ModFit1<-train(classe ~ ., train_ds, method="rf",ntree=100)
 ```
 Predict valid dataset and  calculate the accuracy to measure error.
 ```{r}
@@ -64,7 +64,7 @@ dim(trainPC)
 The number of predictors is reduced to `r dim(trainPC)[2]`. Predict valid dataset and  calculate the accuracy to measure error.
 ```{r train_Model_2,cache=TRUE}
 #ModFit2<-randomForest(train_ds$classe~.,data=trainPC)
-ModFit2<-train(train_ds$classe~.,data=trainPC,method="rf")
+ModFit2<-train(train_ds$classe~.,data=trainPC,method="rf",ntree=100)
 ```
 ```{r}
 validPC<-predict(preProc, valid_ds[,-53])
@@ -74,27 +74,31 @@ pred2<-predict(ModFit2, validPC)
 ```
 Accuracy decreased from `r (confusionMatrix(valid_ds$classe, pred1)$overall)[1]` to `r (confusionMatrix(valid_ds$classe, pred2)$overall)[1]`, which is too much.
 
-Considering backward appoarch to omit features manually, i.e. begin with all variable, omit the feature with smallest importance, train the model and check the accuracy. Repeat the process until accuracy decrease to the thresh.  
+Considering Backwards Selection appoarch to omit features manually, i.e. begin with all variable, omit the feature with smallest importance, train the model and check the accuracy. Repeat the process until accuracy decrease to the thresh.  
 
 ```{r omit_predictor,cache=TRUE}
-acc_thresh<-0.99
+#acc_thresh<-0.9900
+acc_thresh<-0.60
+overall_accuracy<-(confusionMatrix(valid_ds$classe, pred1)$overall)[1]
 
-while ((confusionMatrix(valid_ds$classe, pred1)$overall)[1]>acc_thresh) {
-  vImp<-varImp(ModFit1)
-  vImp<-data.frame(varname=rownames(vImp), Overall=vImp$Overall, row.names=rownames(vImp))
-  vImp<-vImp[order(vImp$Overall), ]
-  
-  remain_predictor<-row.names(vImp[-1,])
-  ModFit1<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
-  pred1<-predict(ModFit1, valid_ds)  
+while (overall_accuracy > acc_thresh) {
+   vImp<-varImp(ModFit1)[1]$importance    # feature importance
+   # get features except that with min importance
+   remain_predictor<-rownames(vImp)[-which(vImp$Overall==min(vImp))] 
+
+   # ModFit1<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
+   ModFit1<-train(train_ds$classe~.,train_ds[,remain_predictor],method="rf",ntree=100)
+   pred1<-predict(ModFit1, valid_ds) 
+   overall_accuracy<-(confusionMatrix(valid_ds$classe, pred1)$overall)[1]
 }
+
 ```
 
 The model before the last one is selected as the result finalModel. 
 ```{r train_result_model}
 remain_predictor<-row.names(vImp)
-# ModFit3<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
-ModFit3<-train(train_ds$classe ~ ., train_ds[,remain_predictor], method="rf")
+#ModFit3<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
+ModFit3<-train(train_ds$classe ~ ., train_ds[,remain_predictor], method="rf",ntree=100)
 pred3<-predict(ModFit3, valid_ds) 
 length(remain_predictor)
 ```
