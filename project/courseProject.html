@@ -72,8 +72,7 @@ if (window.hljs && document.readyState && document.readyState === "complete") {
 <p>Read the data from files</p>
 <pre class="r"><code>library(caret)
 library(randomForest)
-tmp_ds&lt;-read.csv(&quot;pml-training.csv&quot;, na.strings=c(&quot;NA&quot;,&quot;&quot;,&quot;#DIV/0!&quot;))
-test_ds&lt;-read.csv(&quot;pml-testing.csv&quot;, na.strings=c(&quot;NA&quot;,&quot;&quot;,&quot;#DIV/0!&quot;))</code></pre>
+tmp_ds&lt;-read.csv(&quot;pml-training.csv&quot;, na.strings=c(&quot;NA&quot;,&quot;&quot;,&quot;#DIV/0!&quot;))</code></pre>
 <div id="trainvalid-data-split" class="section level4">
 <h4>train/valid data split</h4>
 <p>To test the classifier, random subsampling cross-validation is used to split input training data into training subset and validation subset.</p>
@@ -398,6 +397,14 @@ pred&lt;-predict(ModFit1, validPC)</code></pre>
 ## Detection Prevalence   0.2857   0.1919   0.1754   0.1646   0.1825
 ## Balanced Accuracy      0.9976   0.9893   0.9909   0.9959   0.9967</code></pre>
 </div>
+</div>
+<div id="predict-test-data" class="section level2">
+<h2>predict test data</h2>
+<pre class="r"><code>test_ds&lt;-read.csv(&quot;pml-testing.csv&quot;, na.strings=c(&quot;NA&quot;,&quot;&quot;,&quot;#DIV/0!&quot;))
+test_ds&lt;-test_ds[,var_list]
+test_ds&lt;-test_ds[,-highCorr]
+testPC &lt;- predict(Process, test_ds)
+predTest&lt;-predict(ModFit1, testPC)</code></pre>
 </div>
 <div id="references" class="section level2">
 <h2>References</h2>
