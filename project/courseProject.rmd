@@ -1,11 +1,17 @@
 ---
-title: "Predict manner in which people did the exercise"
+title: "Predict manner of the exercise"
 output: html_document
 ---
 
 ## introduction
 
-## Data procProcessing
+This document is project course of the course "Practical Machine Learning". 
+
+The backgroud is decribed in project backgroud: using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+The goal of this project: use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants, who were asked to perform barbell lifts correctly and incorrectly in 5 different ways, to perform the classification model for 5 different ways. 
+
+## Data preProcessing
 Read the data from files
 ```{r,message=FALSE}
 library(caret)
@@ -14,6 +20,7 @@ tmp_ds<-read.csv("pml-training.csv", na.strings=c("NA","","#DIV/0!"))
 test_ds<-read.csv("pml-testing.csv", na.strings=c("NA","","#DIV/0!"))
 ```
 
+#### train/valid data split
 To test the classifier, random subsampling cross-validation is used to split input training data into training subset and validation subset.  
 ```{r}
 set.seed(12345)
@@ -23,17 +30,25 @@ valid_ds = tmp_ds[-inTrain, ]
 dim(train_ds)
 dim(valid_ds)
 ```
+
+#### Business varaible selection
 As described in 2013.Velloso.QAR-WLE.pdf, there are four sensors on belt, arm, dumbbell and forearm. Every case in the dataset has a group of variables for each of the four sensors, which are the raw accelerometer, gyroscope and magnetometer readings and calculated Euler angles (roll, pitch and yaw). And for the Euler angles of each of the four sensors eight statistics features were calculated such as mean, max, min and so on. 
 ```{r,eval=FALSE}
 summary(train_ds)
 ```
+
 As output of summary(), every row in the dataset has 160 variables and many of statistics varaibles are NA, which can't be used as predictor. So, The Euler angles and raw accelerometer, gyroscope and magnetometer readings of four sensors are taken out only to predict.
 
 ```{r}
 var_list<-c(8:11,37:45,46:49,60:68,84:86,102,113:121,122:124,140,151:159)
-train_ds<-train_ds[,c(var_list, 160)]
-valid_ds<-valid_ds[,c(var_list, 160)]
+train_classe<-train_ds[,160]
+train_ds<-train_ds[,var_list]
+
+valid_classe<-valid_ds[,160]
+valid_ds<-valid_ds[,var_list]
 ```
+
+#### zero covariates remove
 Try to remove zero covariates
 ```{r}
 nsv<-nearZeroVar(train_ds, saveMetrics=TRUE)
@@ -41,77 +56,50 @@ nsv
 ```
 No feature should be removed.
 
+#### high Correlation variables remove
+
+check high Correlation variables
+```{r}
+highCorr<-findCorrelation(cor(train_ds), 0.90)
+highCorr
+```
+Remove high Correlation variables
+```{r}
+train_ds<-train_ds[,-highCorr]
+valid_ds<-valid_ds[,-highCorr]
+```
+
+#### standardize and NA value remove
+remove NA value:
+```{r}
+Process <- preProcess(train_ds)
+trainPC <- predict(Process, train_ds)
+```
 ## Model selection
 
-First, all 52 variables except classe are selected as predictors and random Forest approach is used to train the model.
-```{r train_Model_1,cache=TRUE}
-# ModFit1<-randomForest(classe ~ ., train_ds)
-ModFit1<-train(classe ~ ., train_ds, method="rf",ntree=100)
+Variable classe is a factor with 5 levels, so a classification model is need. randomForest is used to fit the classification model. As previously mentioned, there are `r length(var_list)` predictors and part of them are calculated by others, so the predictors should have correlationship. Some of them are not necessarily used to fit the model. RFE(recursive feature selection) algorithm is used to implements backwards selection of predictors based on predictor importance ranking. To do this, a control object is created with the rfeControl function, and k-fold cross-validation is used with the number of folds which is 10 default. 
+
+```{r select_feature,cache=TRUE}
+ctrl<-rfeControl(functions=rfFuncs, method="cv",repeats=3, returnResamp="all")
+rfProfile <- rfe(trainPC, train_classe, sizes=c(1:ncol(trainPC)), rfeControl = ctrl)
+rfProfile
 ```
-Predict valid dataset and  calculate the accuracy to measure error.
+As resamplingdata and below plots mentioned, the accuracies increase very very slowly when the number of variables is larger than 20. Although I don't think the variables in final model are too much, I think I could do further feature selection to reduce the features, with my own selection function wth my own selection condiction, e.g., instead of selection is with max accuracy decrease, selection with the least features and accuracy > thresh, e.g. 0.99. 
 ```{r}
-pred1<-predict(ModFit1, valid_ds)
-# accuracy 
-(confusionMatrix(valid_ds$classe, pred1)$overall)[1]
+plot(rfProfile,type=c('o','g'), main = "# of variables Vs. accuracy")
 ```
 
-Considering Euler angles (roll, pitch and yaw) are calculated by raw accelerometer, gyroscope and magnetometer readings, these predictors should be correlated. Try pca to reduce number of predictors.
+The predictors in the final model are:
 ```{r}
-preProc<-preProcess(train_ds[,-53], method="pca")  # 53th means classe
-trainPC<-predict(preProc, train_ds[,-53])
-dim(trainPC)
+predictors(rfProfile)
 ```
-The number of predictors is reduced to `r dim(trainPC)[2]`. Predict valid dataset and  calculate the accuracy to measure error.
-```{r train_Model_2,cache=TRUE}
-#ModFit2<-randomForest(train_ds$classe~.,data=trainPC)
-ModFit2<-train(train_ds$classe~.,data=trainPC,method="rf",ntree=100)
-```
+Predict the valid data and the check the accuracy:
 ```{r}
-validPC<-predict(preProc, valid_ds[,-53])
-pred2<-predict(ModFit2, validPC)
-# accuracy
-(confusionMatrix(valid_ds$classe, pred2)$overall)[1]
+validPC <- predict(Process, valid_ds)
+pred<-predict(rfProfile, validPC)
+postResample(pred, valid_classe)
 ```
-Accuracy decreased from `r (confusionMatrix(valid_ds$classe, pred1)$overall)[1]` to `r (confusionMatrix(valid_ds$classe, pred2)$overall)[1]`, which is too much.
-
-Considering Backwards Selection appoarch to omit features manually, i.e. begin with all variable, omit the feature with smallest importance, train the model and check the accuracy. Repeat the process until accuracy decrease to the thresh.  
-
-```{r omit_predictor,cache=TRUE}
-#acc_thresh<-0.9900
-acc_thresh<-0.60
-overall_accuracy<-(confusionMatrix(valid_ds$classe, pred1)$overall)[1]
-
-while (overall_accuracy > acc_thresh) {
-   vImp<-varImp(ModFit1)[1]$importance    # feature importance
-   # get features except that with min importance
-   remain_predictor<-rownames(vImp)[-which(vImp$Overall==min(vImp))] 
-
-   # ModFit1<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
-   ModFit1<-train(train_ds$classe~.,train_ds[,remain_predictor],method="rf",ntree=100)
-   pred1<-predict(ModFit1, valid_ds) 
-   overall_accuracy<-(confusionMatrix(valid_ds$classe, pred1)$overall)[1]
-}
-
-```
-
-The model before the last one is selected as the result finalModel. 
-```{r train_result_model}
-remain_predictor<-row.names(vImp)
-#ModFit3<-randomForest(train_ds$classe ~ ., train_ds[,remain_predictor])
-ModFit3<-train(train_ds$classe ~ ., train_ds[,remain_predictor], method="rf",ntree=100)
-pred3<-predict(ModFit3, valid_ds) 
-length(remain_predictor)
-```
-
-The selected final model has `r length(remain_predictor)` predictors:
-```{r echo=FALSE}
-remain_predictor
-```
-The accuracy of the model is
-```{r}
-(confusionMatrix(valid_ds$classe, pred3)$overall)[1]
-```
-
+So, the out of sample errors is expected to be `r (postResample(pred, valid_classe))[1]`
 
 ```{r,eval=FALSE,echo=FALSE}
 test_key=test_ds[,c(2,3,4)]
@@ -127,14 +115,27 @@ sub_key$user_name=gsub("^ +", "", sub_key$user_name)
 sub_key$user_name=gsub(" +$", "", sub_key$user_name)
 sorted_test_classe<-sub_ds[ do.call(order, sub_key), "classe"]
 
-pred1<-predict(ModFit1, sorted_test_ds)
-sum(sorted_test_classe==pred1)/length(sorted_test_classe)
-
-testPC<-predict(preProc, sorted_test_ds)
-pred2<-predict(ModFit2, testPC)
-sum(sorted_test_classe==pred2)/length(sorted_test_classe)
-
-pred3<-predict(ModFit3, sorted_test_ds)  
-sum(sorted_test_classe==pred3)/length(sorted_test_classe)
+sorted_test_ds<-sorted_test_ds[,-highCorr]
+testPC <- predict(Process, sorted_test_ds)
+pred3<-predict(rfProfile, sorted_test_ds)  
+postResample(pred, valid_classe)
 ```
+
+## References
+
+#### online data link
+
+- The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+- The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+#### data citation
+
+- 2013.Velloso.QAR-WLE.pdf
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
 

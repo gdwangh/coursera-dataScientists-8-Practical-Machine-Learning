@@ -114,3 +114,8 @@ pml_write_files(answers)
 
 pred_test<-predict(ModFit1, test_ds)
 pml_write_files(pred_test)
+
+
+# feature selection with Boruta
+Boruta((classe ~ ., train_ds)
+       
