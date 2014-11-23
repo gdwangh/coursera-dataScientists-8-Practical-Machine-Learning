@@ -36,12 +36,15 @@ dim(valid_ds)
 ```
 
 #### Business varaible selection
-As described in 2013.Velloso.QAR-WLE.pdf, there are four sensors on belt, arm, dumbbell and forearm. Every case in the dataset has a group of variables for each of the four sensors, which are the raw accelerometer, gyroscope and magnetometer readings and calculated Euler angles (roll, pitch and yaw). And for the Euler angles of each of the four sensors eight statistics features were calculated such as mean, max, min and so on. 
 ```{r,eval=FALSE}
 summary(train_ds)
 ```
 
-As output of summary(), every row in the dataset has 160 variables and many of statistics varaibles are NA, which can't be used as predictor. So, The Euler angles and raw accelerometer, gyroscope and magnetometer readings of four sensors are taken out only to predict.
+As output of summary(), every row in the dataset has 160 variables and many of statistics varaibles are NA, which can't be used as predictor. 
+
+As described in 2013.Velloso.QAR-WLE.pdf, there are four sensors on belt, arm, dumbbell and forearm. Every case in the dataset has a group of variables for each of the four sensors, which are the raw accelerometer, gyroscope and magnetometer readings and calculated Euler angles (roll, pitch and yaw). And for the Euler angles of each of the four sensors eight statistics features were calculated such as mean, max, min and so on. 
+
+So, The Euler angles and raw accelerometer, gyroscope and magnetometer readings of four sensors are taken out only to predict.
 
 ```{r}
 var_list<-c(8:11,37:45,46:49,60:68,84:86,102,113:121,122:124,140,151:159)
@@ -88,7 +91,7 @@ ctrl<-rfeControl(functions=rfFuncs, method="cv",repeats=3, returnResamp="all")
 rfProfile <- rfe(trainPC, train_classe, sizes=c(1:ncol(trainPC)), rfeControl = ctrl)
 rfProfile
 ```
-As resamplingdata and below plots mentioned, the accuracies increase very very slowly when the number of variables is larger than 20. Although I don't think the variables in final model are too much, I think I could do further feature selection to reduce the features, with my own selection function wth my own selection condiction, e.g., instead of selection is with max accuracy decrease, selection with the least features and accuracy > thresh, e.g. 0.99. 
+As resampling data and below plots described, the accuracies increase very very slowly when the number of variables is larger than 20. Although I don't think the variables in final model are too much, I think I could do further feature selection to reduce the features, with my own selection function wth my own selection condiction, e.g., instead of selection is with max accuracy decrease, selection with the least features and accuracy > thresh, e.g. 0.99. 
 ```{r}
 plot(rfProfile,type=c('o','g'), main = "# of variables Vs. accuracy")
 ```
@@ -102,8 +105,10 @@ Predict the valid data and the check the accuracy:
 validPC <- predict(Process, valid_ds)
 pred<-predict(rfProfile, validPC)
 postResample(pred, valid_classe)
+confusionMatrix(pred$pred,valid_classe)
 ```
-So, the out of sample errors is expected to be `r (postResample(pred, valid_classe))[1]`
+So, the out of sample errors is expected to be `r round((postResample(pred, valid_classe))[1],4)`
+
 
 ```{r,eval=FALSE,echo=FALSE}
 test_key=test_ds[,c(2,3,4)]
@@ -123,6 +128,52 @@ sorted_test_ds<-sorted_test_ds[,-highCorr]
 testPC <- predict(Process, sorted_test_ds)
 pred3<-predict(rfProfile, sorted_test_ds)  
 postResample(pred, valid_classe)
+```
+
+#### futher feature selection with my own function
+Use backword with the ordered importance to select the features and set the accuracy  thresh.
+```{r}
+acc_thresh<-0.99
+acc_list<-{}
+remove_flist<-{}
+importance_list<-{}
+```
+
+```{r option_own_sel_feature,cache=TRUE}
+ModFit1<-randomForest(train_classe ~ ., trainPC)
+pred<-predict(ModFit1, validPC)
+
+while ((confusionMatrix(valid_classe, pred)$overall)[1]>acc_thresh) {
+   vImp<-varImp(ModFit1)
+   # store the infomation of current model
+   acc_list<-c(acc_list, (confusionMatrix(valid_classe, pred)$overall)[1])
+   importance_list<-c(importance_list, min(vImp))
+   min_acc_predictor<-which(vImp$Overall==min(vImp))
+   remove_flist<- c(remove_flist, rownames(vImp)[min_acc_predictor])
+   
+   # get the feature except the one with min imporatance
+   remain_predictor<-rownames(vImp)[-min_acc_predictor]
+   
+   ModFit1<-randomForest(train_classe ~ ., trainPC[,remain_predictor])
+   pred<-predict(ModFit1, validPC) 
+}
+data.frame(importance=round(importance_list,4), var=remove_flist, accuracy=round(acc_list,4), row.names=c(ncol(trainPC):(ncol(trainPC) - length(remove_flist)+1)))
+```
+The model seletion stop at accuracy=`r round((confusionMatrix(pred, valid_classe)$overall)[1], 4)`. The final model is the one before the last
+```{r}
+remain_predictor<-rownames(vImp)
+ModFit1<-randomForest(train_classe ~ ., trainPC[,remain_predictor])
+pred<-predict(ModFit1, validPC)
+```
+
+There are `r length(remain_predictor)` features in the final model:
+```{r, echo=FALSE}
+remain_predictor
+```
+
+The final model's out of sample errors is `r round((confusionMatrix(pred,valid_classe)$overall)[1],4)`:
+```{r}
+confusionMatrix(pred, valid_classe)
 ```
 
 ## References
