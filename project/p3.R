@@ -45,6 +45,7 @@ pred<-predict(rfProfile, valid_ds)
 
 # Calculates performance
 postResample(pred, valid_classe)
+confusionMatrix(pred$pred,valid_classe)
 
 # produces the performance profile across different subset sizes
 trellis.par.set(caretTheme())
