@@ -1,12 +1,12 @@
 library(caret)
 library(randomForest)
 
-# setwd("./project")
+setwd("./project")
 tmp_ds<-read.csv("pml-training.csv", na.strings=c("NA","","#DIV/0!"))
 test_ds<-read.csv("pml-testing.csv", na.strings=c("NA","","#DIV/0!"))
 
 set.seed(12345)
-inTrain = createDataPartition(tmp_ds$classe, p = 0.1)[[1]]
+inTrain = createDataPartition(tmp_ds$classe, p = 0.75)[[1]]
 train_ds = tmp_ds[ inTrain, ]
 valid_ds = tmp_ds[-inTrain, ]
 
@@ -55,3 +55,7 @@ xyplot(rfProfile, type = c("g", "p", "smooth"))
 
 http://topepo.github.io/caret/featureselection.html
 
+train_1<-train_ds[,c("yaw_belt", "magnet_dumbbell_z", "pitch_belt", "magnet_dumbbell_y", "pitch_forearm")]
+rffit<-randomForest(train_classe~., train_1)
+pred<-predict(rffit, valid_ds)
+confusionMatrix(pred, valid_classe)
