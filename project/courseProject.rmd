@@ -106,7 +106,7 @@ pred<-predict(rfProfile, validPC)
 postResample(pred, valid_classe)
 confusionMatrix(pred$pred,valid_classe)
 ```
-So, the out of sample errors is expected to be `r round((postResample(pred, valid_classe))[1],4)`
+So, the accuracy is `r round((postResample(pred, valid_classe))[1],4)` and the out of sample errors is expected to be `r round(1-(postResample(pred, valid_classe))[1],4)`( = 1-accuracy)
 
 
 #### futher feature selection with my own function
@@ -150,7 +150,7 @@ There are `r length(remain_predictor)` features in the final model:
 remain_predictor
 ```
 
-The final model's out of sample errors is `r round((confusionMatrix(pred,valid_classe)$overall)[1],4)`:
+The final model's accuracy is `r round((confusionMatrix(pred,valid_classe)$overall)[1],4)` and the out of sample errors is `r round(1-(confusionMatrix(pred,valid_classe)$overall)[1],4)` (= 1- accuracy):
 ```{r}
 confusionMatrix(pred, valid_classe)
 ```
